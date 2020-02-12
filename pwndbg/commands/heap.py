@@ -269,17 +269,38 @@ def malloc_chunk(addr,fake=False):
 
     fastbins = [] if fake else main_heap.fastbins(arena)
     header = M.get(addr)
+
     if fake:
         header += message.prompt(' FAKE')
     if prev_inuse:
+        header += message.hint(' PREV_INUSE')
         if actual_size in fastbins:
-            header += message.hint(' FASTBIN')
-        else:
-            header += message.hint(' PREV_INUSE')
+            header += message.hint(' FASTBIN_SIZE')
     if is_mmapped:
         header += message.hint(' IS_MMAPED')
     if non_main_arena:
         header += message.hint(' NON_MAIN_ARENA')
+
+
+    bin_collections = [
+        pwndbg.heap.current.fastbins(None),
+        pwndbg.heap.current.unsortedbin(None),
+        pwndbg.heap.current.smallbins(None),
+        pwndbg.heap.current.largebins(None),
+        ]
+    if pwndbg.heap.current.has_tcache():
+        bin_collections.insert(0, pwndbg.heap.current.tcachebins(None))
+
+    in_bin = False
+#   Check if in a bin
+    for label in bin_labels(addr, bin_collections):
+        header += message.hint(' ' + label)
+        in_bin = True
+#   Check if it's in tcache, offset of 8 for 32 bit programs, 16 for 64 bits. This looks to be based on Malloc alignment size.
+    if not in_bin:
+        for label in bin_labels(addr+main_heap.malloc_alignment, bin_collections):
+            header += message.hint(' ' + label)
+
     print(header, chunk["value"])
 
     return chunk
